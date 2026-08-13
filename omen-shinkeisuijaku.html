@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>お面の神経衰弱</title>
+<style>
+  :root{
+    --bg1:#fff2e0;
+    --bg2:#ffd9c2;
+    --accent:#e6483c;
+    --accent-dark:#b8332a;
+    --card-back1:#c0392b;
+    --card-back2:#8e2417;
+    --gold:#e8b23c;
+    --text:#3b2a20;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
+    background:linear-gradient(160deg,var(--bg1),var(--bg2));
+    color:var(--text);
+    overscroll-behavior:none;
+    user-select:none;
+    touch-action:manipulation;
+  }
+  #app{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+    padding:12px;
+  }
+  .screen{
+    width:100%;
+    max-width:640px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+  }
+  .hidden{display:none !important;}
+
+  h1.title{
+    font-size:clamp(24px,6vw,38px);
+    color:var(--accent-dark);
+    margin:18px 0 6px;
+    text-shadow:1px 1px 0 #fff;
+  }
+  p.sub{
+    font-size:clamp(13px,3vw,16px);
+    color:#6b4a38;
+    margin:0 0 20px;
+    line-height:1.6;
+  }
+  .mask-preview{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+    width:min(80vw,320px);
+    margin-bottom:22px;
+  }
+  .mask-preview svg{width:100%; display:block;}
+
+  button{
+    font-family:inherit;
+    border:none;
+    cursor:pointer;
+  }
+  .btn-primary{
+    background:linear-gradient(180deg,#ff8a5c,var(--accent));
+    color:#fff;
+    font-size:clamp(18px,4.5vw,22px);
+    font-weight:bold;
+    padding:14px 46px;
+    border-radius:50px;
+    box-shadow:0 6px 0 var(--accent-dark), 0 8px 14px rgba(0,0,0,0.2);
+    transition:transform .08s;
+  }
+  .btn-primary:active{
+    transform:translateY(4px);
+    box-shadow:0 2px 0 var(--accent-dark), 0 4px 8px rgba(0,0,0,0.2);
+  }
+  .btn-secondary{
+    background:#fff;
+    color:var(--accent-dark);
+    border:2px solid var(--accent);
+    font-size:clamp(14px,3.5vw,16px);
+    font-weight:bold;
+    padding:10px 28px;
+    border-radius:40px;
+    margin-top:14px;
+  }
+
+  /* ---- HUD ---- */
+  .hud{
+    width:100%;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    max-width:520px;
+    margin:6px 0 12px;
+    padding:0 4px;
+  }
+  .hud-item{
+    background:#fff;
+    border-radius:14px;
+    padding:8px 16px;
+    box-shadow:0 3px 0 rgba(0,0,0,0.08);
+    font-weight:bold;
+    font-size:clamp(13px,3.2vw,16px);
+    color:var(--accent-dark);
+    min-width:78px;
+  }
+  .hud-item span.label{
+    display:block;
+    font-size:10px;
+    color:#a3806f;
+    font-weight:normal;
+  }
+
+  /* ---- Board ---- */
+  #board{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+    width:100%;
+    max-width:520px;
+    margin:0 auto;
+  }
+  .card{
+    aspect-ratio:1/1;
+    perspective:800px;
+  }
+  .card-inner{
+    position:relative;
+    width:100%; height:100%;
+    transition:transform .45s cubic-bezier(.4,.2,.2,1);
+    transform-style:preserve-3d;
+  }
+  .card.flipped .card-inner{transform:rotateY(180deg);}
+  .card.matched .card-inner{transform:rotateY(180deg);}
+  .card-face{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:12px;
+    backface-visibility:hidden;
+    box-shadow:0 3px 6px rgba(0,0,0,0.15);
+  }
+  .card-face-down{
+    background:
+      radial-gradient(circle at 30% 30%, var(--card-back1), var(--card-back2));
+    border:3px solid var(--gold);
+  }
+  .card-face-down::after{
+    content:"?";
+    color:var(--gold);
+    font-size:clamp(20px,6vw,30px);
+    font-weight:bold;
+    opacity:.8;
+  }
+  .card-face-up{
+    background:#fff8ee;
+    transform:rotateY(180deg);
+    border:3px solid #f0ddc4;
+    padding:6%;
+  }
+  .card.matched .card-face-up{
+    border-color:#7ec87e;
+    background:#f2fbf0;
+  }
+  .card-face-up svg{width:100%; height:100%;}
+  .card:not(.locked-out) .card-inner{cursor:pointer;}
+
+  @keyframes pop{
+    0%{transform:scale(1);}
+    40%{transform:scale(1.08);}
+    100%{transform:scale(1);}
+  }
+  .card.matched{animation:pop .35s ease;}
+
+  /* ---- Result overlay ---- */
+  #resultOverlay{
+    position:fixed; inset:0;
+    background:rgba(59,42,32,0.55);
+    display:flex; align-items:center; justify-content:center;
+    padding:16px;
+    z-index:20;
+  }
+  .result-card{
+    background:#fffaf3;
+    border-radius:24px;
+    padding:30px 26px;
+    max-width:360px;
+    width:100%;
+    text-align:center;
+    box-shadow:0 10px 30px rgba(0,0,0,0.3);
+    animation:pop .4s ease;
+  }
+  .result-card h2{
+    margin:0 0 4px;
+    color:var(--accent-dark);
+    font-size:22px;
+  }
+  .rank-badge{
+    font-size:64px;
+    font-weight:bold;
+    margin:10px 0;
+    line-height:1;
+  }
+  .rank-S{color:#e8b23c;}
+  .rank-A{color:#e6483c;}
+  .rank-B{color:#7a9ac9;}
+  .result-stats{
+    display:flex;
+    justify-content:space-around;
+    margin:14px 0 20px;
+  }
+  .result-stats div{font-size:14px; color:#6b4a38;}
+  .result-stats strong{display:block; font-size:20px; color:var(--text);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Title Screen -->
+  <div id="titleScreen" class="screen">
+    <h1 class="title">お面の神経衰弱</h1>
+    <p class="sub">おなじ「おめん」のペアを見つけよう！<br>カードを2まいめくって、絵をあわせてね。</p>
+    <div class="mask-preview" id="maskPreview"></div>
+    <button class="btn-primary" id="startBtn">スタート</button>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="gameScreen" class="screen hidden">
+    <div class="hud">
+      <div class="hud-item"><span class="label">タイム</span><span id="timeDisplay">0秒</span></div>
+      <div class="hud-item"><span class="label">てすう</span><span id="movesDisplay">0</span></div>
+      <div class="hud-item"><span class="label">ペア</span><span id="pairsDisplay">0 / 8</span></div>
+    </div>
+    <div id="board"></div>
+  </div>
+
+  <!-- Result Overlay -->
+  <div id="resultOverlay" class="hidden">
+    <div class="result-card">
+      <h2>クリア！</h2>
+      <div class="rank-badge" id="rankBadge">S</div>
+      <div class="result-stats">
+        <div><strong id="finalTime">0秒</strong>タイム</div>
+        <div><strong id="finalMoves">0</strong>てすう</div>
+        <div><strong id="finalScore">0</strong>スコア</div>
+      </div>
+      <button class="btn-primary" id="retryBtn" style="font-size:16px; padding:10px 34px;">もう一度あそぶ</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  // ---------- Mask SVG designs (placeholder illustrations, swap later with real art) ----------
+  const MASKS = [
+    { key:"kitsune", name:"きつね", svg:`
+      <svg viewBox="0 0 100 100">
+        <polygon points="18,30 32,10 40,34" fill="#f4a13a"/>
+        <polygon points="82,30 68,10 60,34" fill="#f4a13a"/>
+        <ellipse cx="50" cy="56" rx="36" ry="32" fill="#fff6e6" stroke="#f4a13a" stroke-width="3"/>
+        <path d="M22 50 Q50 40 78 50 Q50 46 22 50Z" fill="#f4a13a" opacity="0.5"/>
+        <circle cx="34" cy="60" r="6" fill="#e8756a" opacity="0.6"/>
+        <circle cx="66" cy="60" r="6" fill="#e8756a" opacity="0.6"/>
+        <path d="M27 52 L40 47" stroke="#3b2a20" stroke-width="4" stroke-linecap="round"/>
+        <path d="M73 52 L60 47" stroke="#3b2a20" stroke-width="4" stroke-linecap="round"/>
+        <polygon points="46,64 54,64 50,72" fill="#3b2a20"/>
+        <path d="M40 78 Q50 84 60 78" stroke="#3b2a20" stroke-width="3" fill="none" stroke-linecap="round"/>
+      </svg>`},
+    { key:"oni", name:"おに", svg:`
+      <svg viewBox="0 0 100 100">
+        <path d="M32 24 Q30 8 40 14 Q38 22 38 30Z" fill="#f2ede0"/>
+        <path d="M68 24 Q70 8 60 14 Q62 22 62 30Z" fill="#f2ede0"/>
+        <circle cx="50" cy="58" r="34" fill="#e6483c"/>
+        <path d="M24 46 Q34 34 44 44" stroke="#3b2a20" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <path d="M76 46 Q66 34 56 44" stroke="#3b2a20" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <circle cx="38" cy="56" r="8" fill="#fff"/>
+        <circle cx="62" cy="56" r="8" fill="#fff"/>
+        <circle cx="38" cy="57" r="3.4" fill="#2a1a14"/>
+        <circle cx="62" cy="57" r="3.4" fill="#2a1a14"/>
+        <path d="M30 78 Q50 90 70 78 Q50 82 30 78Z" fill="#3b160f"/>
+        <polygon points="38,78 42,88 46,78" fill="#fff"/>
+        <polygon points="54,78 58,88 62,78" fill="#fff"/>
+      </svg>`},
+    { key:"hyottoko", name:"ひょっとこ", svg:`
+      <svg viewBox="0 0 100 100">
+        <ellipse cx="50" cy="58" rx="32" ry="34" fill="#f0c79a"/>
+        <path d="M20 36 Q50 22 80 36 L78 44 Q50 32 22 44Z" fill="#fdfdfd"/>
+        <circle cx="50" cy="38" r="4" fill="#e6483c"/>
+        <circle cx="37" cy="56" r="3" fill="#3b2a20"/>
+        <circle cx="63" cy="50" r="3" fill="#3b2a20"/>
+        <ellipse cx="46" cy="78" rx="9" ry="11" fill="#7a4b34" transform="rotate(-10 46 78)"/>
+      </svg>`},
+    { key:"okame", name:"おかめ", svg:`
+      <svg viewBox="0 0 100 100">
+        <ellipse cx="50" cy="58" rx="34" ry="33" fill="#fdf1e4"/>
+        <path d="M18 46 Q50 8 82 46 Q66 34 50 34 Q34 34 18 46Z" fill="#241a14"/>
+        <path d="M20 50 Q16 70 24 82" stroke="#241a14" stroke-width="10" fill="none" stroke-linecap="round"/>
+        <path d="M80 50 Q84 70 76 82" stroke="#241a14" stroke-width="10" fill="none" stroke-linecap="round"/>
+        <circle cx="34" cy="66" r="7" fill="#f2a3a3" opacity="0.7"/>
+        <circle cx="66" cy="66" r="7" fill="#f2a3a3" opacity="0.7"/>
+        <path d="M32 56 Q37 52 42 56" stroke="#3b2a20" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M58 56 Q63 52 68 56" stroke="#3b2a20" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <circle cx="50" cy="76" r="3" fill="#c0392b"/>
+      </svg>`},
+    { key:"tengu", name:"てんぐ", svg:`
+      <svg viewBox="0 0 100 100">
+        <path d="M20 40 Q50 12 80 40 Q80 20 50 16 Q20 20 20 40Z" fill="#241a14"/>
+        <circle cx="50" cy="58" r="32" fill="#e6483c"/>
+        <path d="M50 55 Q78 58 76 62 Q74 66 50 63Z" fill="#f0b28a"/>
+        <path d="M30 46 Q38 40 46 46" stroke="#241a14" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <path d="M54 46 Q62 40 70 46" stroke="#241a14" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <circle cx="38" cy="54" r="6" fill="#fff"/>
+        <circle cx="62" cy="54" r="6" fill="#fff"/>
+        <circle cx="38" cy="54" r="2.6" fill="#241a14"/>
+        <circle cx="62" cy="54" r="2.6" fill="#241a14"/>
+        <path d="M38 80 Q50 88 62 80" stroke="#241a14" stroke-width="3" fill="none" stroke-linecap="round"/>
+      </svg>`},
+    { key:"neko", name:"まねきねこ", svg:`
+      <svg viewBox="0 0 100 100">
+        <polygon points="22,34 34,8 42,36" fill="#fff6e6" stroke="#f0ddc4" stroke-width="2"/>
+        <polygon points="78,34 66,8 58,36" fill="#fff6e6" stroke="#f0ddc4" stroke-width="2"/>
+        <polygon points="26,32 34,16 39,34" fill="#f2a3a3"/>
+        <polygon points="74,32 66,16 61,34" fill="#f2a3a3"/>
+        <ellipse cx="50" cy="58" rx="34" ry="30" fill="#fff6e6"/>
+        <ellipse cx="38" cy="54" rx="8" ry="10" fill="#8fd0c9"/>
+        <ellipse cx="62" cy="54" rx="8" ry="10" fill="#8fd0c9"/>
+        <circle cx="38" cy="55" r="3.4" fill="#241a14"/>
+        <circle cx="62" cy="55" r="3.4" fill="#241a14"/>
+        <polygon points="46,66 54,66 50,72" fill="#f2a3a3"/>
+        <path d="M8 62 L28 60 M8 70 L28 66" stroke="#c9b39a" stroke-width="2"/>
+        <path d="M92 62 L72 60 M92 70 L72 66" stroke="#c9b39a" stroke-width="2"/>
+        <path d="M42 76 Q50 80 58 76" stroke="#3b2a20" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      </svg>`},
+    { key:"shishi", name:"しし", svg:`
+      <svg viewBox="0 0 100 100">
+        <polygon points="50,4 58,20 42,20" fill="#e6483c"/>
+        <polygon points="18,20 30,32 14,36" fill="#e6483c"/>
+        <polygon points="82,20 70,32 86,36" fill="#e6483c"/>
+        <polygon points="12,52 26,54 14,64" fill="#e6483c"/>
+        <polygon points="88,52 74,54 86,64" fill="#e6483c"/>
+        <polygon points="20,78 32,70 26,86" fill="#e6483c"/>
+        <polygon points="80,78 68,70 74,86" fill="#e6483c"/>
+        <circle cx="50" cy="58" r="28" fill="#f2c23c"/>
+        <path d="M28 48 Q38 38 48 48" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <path d="M52 48 Q62 38 72 48" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <circle cx="38" cy="56" r="6" fill="#241a14"/>
+        <circle cx="62" cy="56" r="6" fill="#241a14"/>
+        <ellipse cx="50" cy="68" rx="9" ry="6" fill="#c0392b"/>
+        <path d="M30 80 Q50 92 70 80" stroke="#c0392b" stroke-width="4" fill="none" stroke-linecap="round"/>
+      </svg>`},
+    { key:"panda", name:"ぱんだ", svg:`
+      <svg viewBox="0 0 100 100">
+        <circle cx="22" cy="24" r="13" fill="#241a14"/>
+        <circle cx="78" cy="24" r="13" fill="#241a14"/>
+        <circle cx="50" cy="58" r="34" fill="#fdfdfd" stroke="#e6e0d4" stroke-width="2"/>
+        <ellipse cx="36" cy="54" rx="10" ry="13" fill="#241a14"/>
+        <ellipse cx="64" cy="54" rx="10" ry="13" fill="#241a14"/>
+        <circle cx="37" cy="56" r="3.6" fill="#fff"/>
+        <circle cx="65" cy="56" r="3.6" fill="#fff"/>
+        <ellipse cx="50" cy="70" rx="6" ry="4" fill="#241a14"/>
+        <path d="M40 80 Q50 86 60 80" stroke="#241a14" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+      </svg>`},
+  ];
+
+  // ---------- State ----------
+  let deck = [];
+  let firstCard = null, secondCard = null;
+  let lock = false;
+  let moves = 0, matchedPairs = 0;
+  let timerInterval = null, elapsedSec = 0;
+
+  const boardEl = document.getElementById("board");
+  const titleScreen = document.getElementById("titleScreen");
+  const gameScreen = document.getElementById("gameScreen");
+  const resultOverlay = document.getElementById("resultOverlay");
+  const timeDisplay = document.getElementById("timeDisplay");
+  const movesDisplay = document.getElementById("movesDisplay");
+  const pairsDisplay = document.getElementById("pairsDisplay");
+
+  // Preview a few masks on title screen
+  const previewEl = document.getElementById("maskPreview");
+  MASKS.slice(0,4).forEach(m => {
+    const div = document.createElement("div");
+    div.innerHTML = m.svg;
+    previewEl.appendChild(div);
+  });
+
+  function shuffle(arr){
+    for(let i=arr.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [arr[i],arr[j]] = [arr[j],arr[i]];
+    }
+    return arr;
+  }
+
+  function buildDeck(){
+    deck = shuffle(MASKS.concat(MASKS).map((m,i)=>({...m, id:i})));
+  }
+
+  function renderBoard(){
+    boardEl.innerHTML = "";
+    deck.forEach((cardData) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.dataset.key = cardData.key;
+      card.dataset.id = cardData.id;
+      card.innerHTML = `
+        <div class="card-inner">
+          <div class="card-face card-face-down"></div>
+          <div class="card-face card-face-up">${cardData.svg}</div>
+        </div>`;
+      card.addEventListener("click", onCardClick);
+      boardEl.appendChild(card);
+    });
+  }
+
+  function onCardClick(e){
+    const card = e.currentTarget;
+    if(lock) return;
+    if(card.classList.contains("flipped") || card.classList.contains("matched")) return;
+
+    card.classList.add("flipped");
+
+    if(!firstCard){
+      firstCard = card;
+      return;
+    }
+    secondCard = card;
+    lock = true;
+    moves++;
+    movesDisplay.textContent = moves;
+
+    const isMatch = firstCard.dataset.key === secondCard.dataset.key;
+    if(isMatch){
+      firstCard.classList.add("matched");
+      secondCard.classList.add("matched");
+      matchedPairs++;
+      pairsDisplay.textContent = matchedPairs + " / 8";
+      resetTurn();
+      if(matchedPairs === 8){
+        setTimeout(finishGame, 500);
+      }
+    } else {
+      setTimeout(() => {
+        firstCard.classList.remove("flipped");
+        secondCard.classList.remove("flipped");
+        resetTurn();
+      }, 750);
+    }
+  }
+
+  function resetTurn(){
+    firstCard = null;
+    secondCard = null;
+    lock = false;
+  }
+
+  function startTimer(){
+    elapsedSec = 0;
+    timeDisplay.textContent = "0秒";
+    timerInterval = setInterval(() => {
+      elapsedSec++;
+      timeDisplay.textContent = elapsedSec + "秒";
+    }, 1000);
+  }
+
+  function stopTimer(){
+    clearInterval(timerInterval);
+  }
+
+  function calcRank(m, s){
+    const score = Math.max(0, Math.round(1000 - (m-8)*40 - s*3));
+    let rank = "B";
+    if(score >= 800) rank = "S";
+    else if(score >= 500) rank = "A";
+    return {score, rank};
+  }
+
+  function finishGame(){
+    stopTimer();
+    const {score, rank} = calcRank(moves, elapsedSec);
+    document.getElementById("finalTime").textContent = elapsedSec + "秒";
+    document.getElementById("finalMoves").textContent = moves;
+    document.getElementById("finalScore").textContent = score;
+    const badge = document.getElementById("rankBadge");
+    badge.textContent = rank;
+    badge.className = "rank-badge rank-" + rank;
+    resultOverlay.classList.remove("hidden");
+  }
+
+  function startGame(){
+    moves = 0; matchedPairs = 0;
+    movesDisplay.textContent = "0";
+    pairsDisplay.textContent = "0 / 8";
+    resultOverlay.classList.add("hidden");
+    buildDeck();
+    renderBoard();
+    titleScreen.classList.add("hidden");
+    gameScreen.classList.remove("hidden");
+    startTimer();
+  }
+
+  document.getElementById("startBtn").addEventListener("click", startGame);
+  document.getElementById("retryBtn").addEventListener("click", startGame);
+
+})();
+</script>
+</body>
+</html>
